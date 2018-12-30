@@ -179,11 +179,12 @@ class BoyerMoore
 {
     public:
 
-    unordered_map<char, vector<int>> badCharTab;
+    unordered_map<char, vector<int>> badCharTab; // precalcualted shift table for bad character rule
     vector<int> nArray;
     vector<int> bigLArray;
     vector<int> bigLPrimeArray;
     vector<int> smallLPrimeArray;
+    vector<int> goodSuffixTab; // precalculated shift table for good suffix rule, idea is put as much as calculation in the preprocessing step
     string pattern;
     int skipWhenMatched;
     BoyerMoore(string p, string alphabet)
@@ -197,6 +198,12 @@ class BoyerMoore
         badCharTab = badCharTable(p, alphabet);
         skipWhenMatched = smallLPrimeArray.size() - smallLPrimeArray[1];
         skipWhenMatched = max(1, skipWhenMatched);
+
+        goodSuffixTab.assign(p.size(), 0);
+        for (size_t i = 0; i < p.size(); i++)
+        {
+            goodSuffixTab[i] = goodSuffixMismatch(i, bigLPrimeArray, smallLPrimeArray);
+        }
     }
     
     int badCharSkip(int i, char c)
@@ -207,10 +214,10 @@ class BoyerMoore
         return badCharTab[c][i];
     }
 
-    int goodSuffixSkip(int i)
-    {
-        return goodSuffixMismatch(i, bigLPrimeArray, smallLPrimeArray);
-    }
+    //int goodSuffixSkip(int i)
+    //{
+    //    return goodSuffixTab[i];
+    //}
 
     vector<int> match(const string& targetStr)
     {
@@ -230,7 +237,7 @@ class BoyerMoore
             {
                 if (pattern[i] != targetStr[j - pattern.size() + 1 + i])
                 {
-                    shift = max(badCharSkip(i, targetStr[j - pattern.size() + 1 + i]), goodSuffixSkip(i));
+                    shift = max(badCharSkip(i, targetStr[j - pattern.size() + 1 + i]), goodSuffixTab[i]);
                     matched = false;
                     break;
                 }
@@ -251,14 +258,23 @@ class KMP
 {
     public:
     vector<int> spPrimeArray;
+    vector<int> mismatchSkipTab; // Z based mismatch skip table
+    vector<int> lps;  // longest prefix suffix array, KMP vanilla preprocessing
     string pattern;
-    int skipWhenMatched;
+    int skipWhenMatched; // constant skip when a match occurs
     KMP(string p)
     {
         vector<int> z = ZArray(p);
         spPrimeArray = SpPrimeArray(z);
         skipWhenMatched = spPrimeArray.size() - spPrimeArray[spPrimeArray.size() - 1];
         pattern = p;
+        
+        mismatchSkipTab.assign(spPrimeArray.size(), 0);
+        for (size_t i = 0; i < spPrimeArray.size(); i++)
+            mismatchSkipTab[i] = mismatchSkip(i);
+        
+        // initialize LPS array
+        lps = nextArray(p);
     }
 
     // sp' array, the length of the longest suffix of s[1..i] which is also a prefix of s with extra condition that s[i+1] != s[sp'(i)+1]. sp' can be calculated from Z array. 
@@ -309,7 +325,7 @@ class KMP
             {
                 if (pattern[i] != targetStr[j + i])
                 {
-                    shift_j = mismatchSkip(i);
+                    shift_j = mismatchSkipTab[i];
                     if (i > 0)
                         shift_i = spPrimeArray[i-1];
                     matched = false;
@@ -354,7 +370,6 @@ class KMP
 
     vector<int> matchUsingNextArray(const string& targetStr)
     {
-        vector<int> lps = nextArray(pattern);
         vector<int> occurrence;
         int i, j;
         i = j = 0;
